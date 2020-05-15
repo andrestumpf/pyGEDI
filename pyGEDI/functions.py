@@ -3,9 +3,20 @@
 import os, sys, ast, re
 
 try:
+    import geopandas
+except ImportError:
+    sys.exit("""You need following module: geopandas """)
+
+try:
+    import shapely
+except ImportError:
+    sys.exit("""You need following module: shapely """)
+
+try:
     import requests
 except ImportError:
     sys.exit("""You need following module: requests """)
+
 try:
     import h5py
 except ImportError:
@@ -46,16 +57,30 @@ def gediDownload(outdir, product, version, bbox, session):
         url_response(outdir, url, session)
 
 
-def idsBox(fileh5, latlayer, lonlayer, bbox):
-    ids = []
+def bbox2polygon(bbox):
     [ul_lat, ul_lon, lr_lat, lr_lon] = bbox
+    return shapely.geometry.Polygon([[ul_lat, ul_lon],[ul_lat, lr_lon], [lr_lat, lr_lon], [lr_lat, ul_lon]])
+
+
+def idsBox(fileh5, latlayer, lonlayer, bbox):
+
+    ids = []
+    bbox_polygon = bbox2polygon(bbox)
+
     for beam in ['BEAM0000', 'BEAM0001', 'BEAM0010', 'BEAM0011', 'BEAM0101', 'BEAM0110', 'BEAM1000', 'BEAM1011']:
         x = fileh5[beam][latlayer]
         y = fileh5[beam][lonlayer]
-        for i in range(len(x)):
-            if ((abs(x[i]) <= abs(ul_lat)) and (abs(x[i]) >= abs(lr_lat)) and (abs(y[i]) <= abs(lr_lon)) and (
-                    abs(y[i]) >= abs(ul_lon))):
-                ids += [(beam, fileh5[beam]['shot_number'][i])]
+        shot_number = fileh5[beam]['shot_number']
+
+        x = fileh5[beam][latlayer][:]
+        y = fileh5[beam][lonlayer][:]
+        shot_number = fileh5[beam]['shot_number'][:]
+
+        gdf = geopandas.GeoDataFrame(geometry=geopandas.points_from_xy(x, y))
+        spatial_index = gdf.sindex
+        matches_index = list(spatial_index.intersection(bbox_polygon.bounds))
+        ids += list(shot_number[matches_index])
+
     return ids
 
 
