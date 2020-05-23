@@ -86,6 +86,13 @@ def idsBox(fileh5, latlayer, lonlayer, bbox):
 
 def generateBoxDataFrame(filesh5, layers, idsbox):
     df = pd.DataFrame()
+
+    # check first if specified layers are present in all files
+    for layer in layers:
+        for fileh5 in filesh5:
+            if not layer in fileh5['BEAM0000'].keys():
+                raise Exception(f'Layer {layer} not found in {fileh5}')
+
     for layer in layers:
         colum = []
         for ids in idsbox:
