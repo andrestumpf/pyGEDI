@@ -79,7 +79,7 @@ def idsBox(fileh5, latlayer, lonlayer, bbox):
         gdf = geopandas.GeoDataFrame(geometry=geopandas.points_from_xy(x, y))
         spatial_index = gdf.sindex
         matches_index = list(spatial_index.intersection(bbox_polygon.bounds))
-        ids += list(shot_number[matches_index])
+        ids += [(beam, shot) for shot in list(shot_number[matches_index])]
 
     return ids
 
