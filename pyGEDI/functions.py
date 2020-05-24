@@ -62,24 +62,21 @@ def bbox2polygon(bbox):
     return shapely.geometry.Polygon([[ul_lat, ul_lon],[ul_lat, lr_lon], [lr_lat, lr_lon], [lr_lat, ul_lon]])
 
 
-def idsBox(fileh5, latlayer, lonlayer, bbox):
+def idsBox(filesh5, latlayer, lonlayer, bbox):
 
-    ids = []
     bbox_polygon = bbox2polygon(bbox)
+    ids = []
+    for fileh5 in filesh5:
 
-    for beam in ['BEAM0000', 'BEAM0001', 'BEAM0010', 'BEAM0011', 'BEAM0101', 'BEAM0110', 'BEAM1000', 'BEAM1011']:
-        x = fileh5[beam][latlayer]
-        y = fileh5[beam][lonlayer]
-        shot_number = fileh5[beam]['shot_number']
+        for beam in ['BEAM0000', 'BEAM0001', 'BEAM0010', 'BEAM0011', 'BEAM0101', 'BEAM0110', 'BEAM1000', 'BEAM1011']:
+            x = fileh5[beam][latlayer][:]
+            y = fileh5[beam][lonlayer][:]
+            shot_number = fileh5[beam]['shot_number'][:]
 
-        x = fileh5[beam][latlayer][:]
-        y = fileh5[beam][lonlayer][:]
-        shot_number = fileh5[beam]['shot_number'][:]
-
-        gdf = geopandas.GeoDataFrame(geometry=geopandas.points_from_xy(x, y))
-        spatial_index = gdf.sindex
-        matches_index = list(spatial_index.intersection(bbox_polygon.bounds))
-        ids += [(beam, shot) for shot in list(shot_number[matches_index])]
+            gdf = geopandas.GeoDataFrame(geometry=geopandas.points_from_xy(x, y))
+            spatial_index = gdf.sindex
+            matches_index = list(spatial_index.intersection(bbox_polygon.bounds))
+            ids += [(beam, shot) for shot in list(shot_number[matches_index])]
 
     return ids
 
@@ -101,8 +98,6 @@ def generateBoxDataFrame(filesh5, layers, idsbox):
                     if i and (layer in fileh5[ids[0]].keys()):
                         value = [fileh5[ids[0]][layer][i]]
                         colum += value
-                if layer in ['beam', 'shot_number', 'sensitivity']:
-                    break
         df[layer] = colum
     return df
 
