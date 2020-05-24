@@ -3,6 +3,16 @@
 import os, sys, ast, re
 
 try:
+    import alive_progress
+except ImportError:
+    sys.exit("""You need following module: alive_progress """)
+
+try:
+    import pandas
+except ImportError:
+    sys.exit("""You need following module: pandas """)
+
+try:
     import geopandas
 except ImportError:
     sys.exit("""You need following module: geopandas """)
@@ -60,6 +70,55 @@ def gediDownload(outdir, product, version, bbox, session):
 def bbox2polygon(bbox):
     [ul_lat, ul_lon, lr_lat, lr_lon] = bbox
     return shapely.geometry.Polygon([[ul_lat, ul_lon],[ul_lat, lr_lon], [lr_lat, lr_lon], [lr_lat, ul_lon]])
+
+
+def extract_bbox(fileh5, bbox, latlayer='geolocation/lat_lowestmode', lonlayer='geolocation/lon_lowestmode',
+                 layers=None):
+
+    """
+    :param fileh5: object of class h5py._hl.files.File
+    :param bbox: list defining bounding box with the format [ul_lat, ul_lon, lr_lat, lr_lon]
+    :param latlayer: string specifying the latitude layer
+    :param lonlayer: string specifying the latitude layer
+    :param layers: list with strings matching available input layers
+    :return: Pandas data frame including filename; beam, shot number and the requested layers within the bbox
+    """
+
+    bbox_polygon = bbox2polygon(bbox)
+    df = pandas.DataFrame(columns=layers)
+
+    beams = ['BEAM0000', 'BEAM0001', 'BEAM0010', 'BEAM0011', 'BEAM0101', 'BEAM0110', 'BEAM1000', 'BEAM1011']
+    print('Extracting requested subset of layers for each beam...')
+    with alive_progress.alive_bar(len(beams)) as bar:
+
+        for beam in beams:
+            df_beam = pandas.DataFrame()
+            x = fileh5[beam][latlayer][:]
+            y = fileh5[beam][lonlayer][:]
+            shot_number = fileh5[beam]['shot_number'][:]
+
+            gdf = geopandas.GeoDataFrame(geometry=geopandas.points_from_xy(x, y))
+            spatial_index = gdf.sindex
+            matches_index = list(spatial_index.intersection(bbox_polygon.bounds))
+
+            # check first if specified layers are present
+            for layer in layers:
+                if not layer in fileh5[beam].keys():
+                   raise Exception(f'Layer {layer} not found for {beam} and {fileh5}!')
+
+            df_beam['shot_number'] = shot_number[matches_index]
+            df_beam['beam'] = beam
+            df_beam['filename'] = fileh5.filename
+
+            if layers:
+                for layer in layers:
+                    layer_values = fileh5[beam][layer][:]
+                    df_beam[layer] = layer_values[matches_index].tolist()
+
+            df = df.append(df_beam)
+            bar()
+
+    return df
 
 
 def idsBox(filesh5, latlayer, lonlayer, bbox):
