@@ -115,10 +115,10 @@ def extract_bbox(fileh5, bbox, latlayer='geolocation/lat_lowestmode', lonlayer='
                     layer_values = fileh5[beam][layer][:]
                     df_beam[layer] = layer_values[matches_index].tolist()
 
-            df = df.append(df_beam)
+            df = df.append(df_beam, ignore_index=True)
             bar()
 
-    return df
+    return df.infer_objects()
 
 
 def idsBox(filesh5, latlayer, lonlayer, bbox):
