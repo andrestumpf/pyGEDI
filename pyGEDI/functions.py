@@ -113,7 +113,10 @@ def extract_bbox(fileh5, bbox, latlayer='geolocation/lat_lowestmode', lonlayer='
             if layers:
                 for layer in layers:
                     layer_values = fileh5[beam][layer][:]
-                    df_beam[layer] = layer_values[matches_index].tolist()
+                    if 'ancillary' in layer:
+                        df_beam[layer] = layer_values.tolist() * len(matches_index)
+                    else:
+                        df_beam[layer] = layer_values[matches_index].tolist()
 
             df = df.append(df_beam, ignore_index=True)
             bar()
