@@ -3,9 +3,9 @@
 import os, sys, ast, re
 
 try:
-    import alive_progress
+    from tqdm.autonotebook import tqdm, trange
 except ImportError:
-    sys.exit("""You need following module: alive_progress """)
+    sys.exit("""You need following module: tqdm """)
 
 try:
     import pandas
@@ -89,37 +89,35 @@ def extract_bbox(fileh5, bbox, latlayer='geolocation/lat_lowestmode', lonlayer='
 
     beams = ['BEAM0000', 'BEAM0001', 'BEAM0010', 'BEAM0011', 'BEAM0101', 'BEAM0110', 'BEAM1000', 'BEAM1011']
     print('Extracting requested subset of layers for each beam...')
-    with alive_progress.alive_bar(len(beams)) as bar:
 
-        for beam in beams:
-            df_beam = pandas.DataFrame()
-            x = fileh5[beam][latlayer][:]
-            y = fileh5[beam][lonlayer][:]
-            shot_number = fileh5[beam]['shot_number'][:]
+    for beam in tqdm(beams):
+        df_beam = pandas.DataFrame()
+        x = fileh5[beam][latlayer][:]
+        y = fileh5[beam][lonlayer][:]
+        shot_number = fileh5[beam]['shot_number'][:]
 
-            gdf = geopandas.GeoDataFrame(geometry=geopandas.points_from_xy(x, y))
-            spatial_index = gdf.sindex
-            matches_index = list(spatial_index.intersection(bbox_polygon.bounds))
+        gdf = geopandas.GeoDataFrame(geometry=geopandas.points_from_xy(x, y))
+        spatial_index = gdf.sindex
+        matches_index = list(spatial_index.intersection(bbox_polygon.bounds))
 
-            # check first if specified layers are present
+        # check first if specified layers are present
+        for layer in layers:
+            if not layer in fileh5[beam].keys():
+               raise Exception(f'Layer {layer} not found for {beam} and {fileh5}!')
+
+        df_beam['shot_number'] = shot_number[matches_index]
+        df_beam['beam'] = beam
+        df_beam['filename'] = fileh5.filename
+
+        if layers:
             for layer in layers:
-                if not layer in fileh5[beam].keys():
-                   raise Exception(f'Layer {layer} not found for {beam} and {fileh5}!')
+                layer_values = fileh5[beam][layer][:]
+                if 'ancillary' in layer:
+                    df_beam[layer] = layer_values.tolist() * len(matches_index)
+                else:
+                    df_beam[layer] = layer_values[matches_index].tolist()
 
-            df_beam['shot_number'] = shot_number[matches_index]
-            df_beam['beam'] = beam
-            df_beam['filename'] = fileh5.filename
-
-            if layers:
-                for layer in layers:
-                    layer_values = fileh5[beam][layer][:]
-                    if 'ancillary' in layer:
-                        df_beam[layer] = layer_values.tolist() * len(matches_index)
-                    else:
-                        df_beam[layer] = layer_values[matches_index].tolist()
-
-            df = df.append(df_beam, ignore_index=True)
-            bar()
+        df = df.append(df_beam, ignore_index=True)
 
     return df.infer_objects()
 
